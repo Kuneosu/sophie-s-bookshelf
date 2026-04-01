@@ -66,4 +66,20 @@ class BookDao {
     );
     return result.isNotEmpty;
   }
+
+  /// 전체 삭제 (import 시 사용)
+  Future<void> deleteAll() async {
+    final db = await _dbHelper.database;
+    await db.delete('books');
+  }
+
+  /// 배치 삽입 (import 시 사용)
+  Future<void> insertAll(List<Book> books) async {
+    final db = await _dbHelper.database;
+    final batch = db.batch();
+    for (final book in books) {
+      batch.insert('books', book.toMap());
+    }
+    await batch.commit(noResult: true);
+  }
 }

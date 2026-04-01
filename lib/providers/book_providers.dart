@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../data/repository/book_repository.dart';
 import '../data/repository/search_repository.dart';
 import '../domain/model/book.dart';
+import 'package:intl/intl.dart';
 
 // Repositories
 final bookRepositoryProvider = Provider((ref) => BookRepository());
@@ -17,7 +18,6 @@ final booksProvider = FutureProvider<List<Book>>((ref) async {
 class StatusFilterNotifier extends Notifier<ReadingStatus?> {
   @override
   ReadingStatus? build() => null;
-
   void set(ReadingStatus? status) => state = status;
 }
 
@@ -29,6 +29,7 @@ final selectedStatusFilterProvider =
 final filteredBooksProvider = FutureProvider<List<Book>>((ref) async {
   final repo = ref.read(bookRepositoryProvider);
   final filter = ref.watch(selectedStatusFilterProvider);
+  ref.watch(booksRefreshProvider);
 
   if (filter == null) {
     return repo.getAllBooks();
@@ -36,28 +37,90 @@ final filteredBooksProvider = FutureProvider<List<Book>>((ref) async {
   return repo.getBooksByStatus(filter);
 });
 
-// 검색 쿼리
+// 그룹핑 모드
+enum GroupMode { none, author, finishedMonth }
+
+class GroupModeNotifier extends Notifier<GroupMode> {
+  @override
+  GroupMode build() => GroupMode.none;
+  void set(GroupMode mode) => state = mode;
+}
+
+final groupModeProvider =
+    NotifierProvider<GroupModeNotifier, GroupMode>(GroupModeNotifier.new);
+
+// 그룹핑된 책 목록
+final groupedBooksProvider =
+    FutureProvider<Map<String, List<Book>>>((ref) async {
+  final books = await ref.watch(filteredBooksProvider.future);
+  final groupMode = ref.watch(groupModeProvider);
+
+  switch (groupMode) {
+    case GroupMode.none:
+      return {'': books};
+    case GroupMode.author:
+      final map = <String, List<Book>>{};
+      for (final book in books) {
+        final key = book.author.isNotEmpty ? book.author : '작가 미상';
+        map.putIfAbsent(key, () => []).add(book);
+      }
+      // 가나다순 정렬
+      return Map.fromEntries(
+        map.entries.toList()..sort((a, b) => a.key.compareTo(b.key)),
+      );
+    case GroupMode.finishedMonth:
+      final map = <String, List<Book>>{};
+      final fmt = DateFormat('yyyy년 M월');
+      for (final book in books) {
+        final key = book.finishedAt != null ? fmt.format(book.finishedAt!) : '미완독';
+        map.putIfAbsent(key, () => []).add(book);
+      }
+      // 최신순 정렬 (미완독은 맨 뒤)
+      return Map.fromEntries(
+        map.entries.toList()
+          ..sort((a, b) {
+            if (a.key == '미완독') return 1;
+            if (b.key == '미완독') return -1;
+            return b.key.compareTo(a.key);
+          }),
+      );
+  }
+});
+
+// 뷰 모드 (갤러리 / 리스트)
+enum ViewMode { gallery, list }
+
+class ViewModeNotifier extends Notifier<ViewMode> {
+  @override
+  ViewMode build() => ViewMode.gallery;
+  void toggle() {
+    state = state == ViewMode.gallery ? ViewMode.list : ViewMode.gallery;
+  }
+}
+
+final viewModeProvider =
+    NotifierProvider<ViewModeNotifier, ViewMode>(ViewModeNotifier.new);
+
+// 검색
 class SearchQueryNotifier extends Notifier<String> {
   @override
   String build() => '';
-
   void set(String query) => state = query;
 }
 
 final searchQueryProvider =
     NotifierProvider<SearchQueryNotifier, String>(SearchQueryNotifier.new);
 
-// 검색 결과
 final searchResultsProvider = FutureProvider<List<Book>>((ref) async {
   final query = ref.watch(searchQueryProvider);
   if (query.trim().isEmpty) return [];
-
   final repo = ref.read(searchRepositoryProvider);
   return repo.searchBooks(query);
 });
 
 // 책 상세
 final bookDetailProvider = FutureProvider.family<Book?, int>((ref, id) async {
+  ref.watch(booksRefreshProvider);
   final repo = ref.read(bookRepositoryProvider);
   return repo.getBookById(id);
 });
@@ -66,7 +129,6 @@ final bookDetailProvider = FutureProvider.family<Book?, int>((ref, id) async {
 class BooksRefreshNotifier extends Notifier<int> {
   @override
   int build() => 0;
-
   void refresh() => state++;
 }
 

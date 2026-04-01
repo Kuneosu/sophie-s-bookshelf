@@ -33,11 +33,9 @@ class StatusBottomSheet extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 핸들 바
           Center(
             child: Container(
-              width: 40,
-              height: 4,
+              width: 40, height: 4,
               decoration: BoxDecoration(
                 color: AppColors.textHint.withValues(alpha: 0.3),
                 borderRadius: BorderRadius.circular(2),
@@ -45,10 +43,7 @@ class StatusBottomSheet extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 20),
-          Text(
-            '독서 상태',
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
+          Text('독서 상태', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 16),
           ...ReadingStatus.values.map((status) => _StatusTile(
                 status: status,
@@ -88,8 +83,7 @@ class _StatusTile extends StatelessWidget {
         child: Row(
           children: [
             Container(
-              width: 12,
-              height: 12,
+              width: 12, height: 12,
               decoration: BoxDecoration(
                 color: AppColors.statusColor(status.index),
                 shape: BoxShape.circle,
@@ -97,7 +91,7 @@ class _StatusTile extends StatelessWidget {
             ),
             const SizedBox(width: 14),
             Text(
-              '${status.emoji}  ${status.label}',
+              status.label,
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
@@ -106,11 +100,7 @@ class _StatusTile extends StatelessWidget {
             ),
             const Spacer(),
             if (isSelected)
-              const Icon(
-                Icons.check_rounded,
-                color: AppColors.primary,
-                size: 20,
-              ),
+              const Icon(Icons.check_rounded, color: AppColors.primary, size: 20),
           ],
         ),
       ),

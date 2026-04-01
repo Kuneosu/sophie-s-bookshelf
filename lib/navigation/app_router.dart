@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../ui/home/home_screen.dart';
 import '../ui/search/search_screen.dart';
 import '../ui/detail/detail_screen.dart';
+import '../ui/settings/settings_screen.dart';
 
 final appRouter = GoRouter(
   initialLocation: '/',
@@ -14,6 +15,7 @@ final appRouter = GoRouter(
         child: HomeScreen(
           onBookTap: (id) => context.push('/detail/$id'),
           onSearchTap: () => context.push('/search'),
+          onSettingsTap: () => context.push('/settings'),
         ),
         transitionsBuilder: (context, animation, secondaryAnimation, child) =>
             FadeTransition(opacity: animation, child: child),
@@ -62,6 +64,26 @@ final appRouter = GoRouter(
           ),
         );
       },
+    ),
+    GoRoute(
+      path: '/settings',
+      pageBuilder: (context, state) => CustomTransitionPage(
+        key: state.pageKey,
+        child: SettingsScreen(
+          onBack: () => context.pop(),
+        ),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) =>
+            SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(1, 0),
+            end: Offset.zero,
+          ).animate(CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOutCubic,
+          )),
+          child: child,
+        ),
+      ),
     ),
   ],
 );

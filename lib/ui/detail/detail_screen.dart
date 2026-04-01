@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:intl/intl.dart';
 import '../../domain/model/book.dart';
 import '../../providers/book_providers.dart';
 import '../components/status_bottom_sheet.dart';
@@ -23,6 +24,7 @@ class DetailScreen extends ConsumerStatefulWidget {
 class _DetailScreenState extends ConsumerState<DetailScreen> {
   late TextEditingController _memoController;
   bool _memoChanged = false;
+  bool _memoInitialized = false;
 
   @override
   void initState() {
@@ -43,7 +45,7 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
     if (book == null) return;
     final updated = book.copyWith(memo: _memoController.text);
     await ref.read(bookRepositoryProvider).updateBook(updated);
-    ref.invalidate(filteredBooksProvider);
+    ref.read(booksRefreshProvider.notifier).refresh();
   }
 
   Future<void> _changeStatus(Book book) async {
@@ -53,13 +55,46 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
     );
     if (status == null) return;
 
+    final now = DateTime.now();
     final updated = book.copyWith(
       status: status,
-      finishedAt: status == ReadingStatus.finished ? DateTime.now() : null,
+      startedAt: status == ReadingStatus.reading
+          ? (book.startedAt ?? now)
+          : book.startedAt,
+      finishedAt: status == ReadingStatus.finished ? now : null,
+      clearStartedAt: status == ReadingStatus.wantToRead,
+      clearFinishedAt: status != ReadingStatus.finished,
     );
     await ref.read(bookRepositoryProvider).updateBook(updated);
     ref.invalidate(bookDetailProvider(widget.bookId));
-    ref.invalidate(filteredBooksProvider);
+    ref.read(booksRefreshProvider.notifier).refresh();
+  }
+
+  Future<void> _pickDate(Book book, {required bool isStart}) async {
+    final initial = isStart ? book.startedAt : book.finishedAt;
+    final date = await showDatePicker(
+      context: context,
+      initialDate: initial ?? DateTime.now(),
+      firstDate: DateTime(2000),
+      lastDate: DateTime.now().add(const Duration(days: 1)),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: Theme.of(context).colorScheme.copyWith(
+                  primary: AppColors.primary,
+                ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (date == null) return;
+
+    final updated = isStart
+        ? book.copyWith(startedAt: date)
+        : book.copyWith(finishedAt: date);
+    await ref.read(bookRepositoryProvider).updateBook(updated);
+    ref.invalidate(bookDetailProvider(widget.bookId));
     ref.read(booksRefreshProvider.notifier).refresh();
   }
 
@@ -92,7 +127,6 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
 
     if (confirmed == true) {
       await ref.read(bookRepositoryProvider).deleteBook(widget.bookId);
-      ref.invalidate(filteredBooksProvider);
       ref.read(booksRefreshProvider.notifier).refresh();
       widget.onBack();
     }
@@ -138,10 +172,12 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
             return const Center(child: Text('책을 찾을 수 없어요'));
           }
 
-          // 메모 컨트롤러 초기화 (한 번만)
-          if (_memoController.text.isEmpty && book.memo.isNotEmpty) {
+          if (!_memoInitialized && book.memo.isNotEmpty) {
             _memoController.text = book.memo;
+            _memoInitialized = true;
           }
+
+          final dateFmt = DateFormat('yyyy. M. d');
 
           return SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(24, 0, 24, 40),
@@ -173,26 +209,19 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
                             )
                           : Container(
                               color: AppColors.creamLight,
-                              child: const Icon(
-                                Icons.menu_book_rounded,
-                                size: 48,
-                                color: AppColors.textHint,
-                              ),
+                              child: const Icon(Icons.menu_book_rounded,
+                                  size: 48, color: AppColors.textHint),
                             ),
                     ),
                   ),
                 ),
                 const SizedBox(height: 24),
-
-                // 제목
                 Text(
                   book.title,
                   style: Theme.of(context).textTheme.headlineMedium,
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 8),
-
-                // 저자 · 출판사
                 Text(
                   '${book.author} · ${book.publisher}',
                   style: Theme.of(context).textTheme.bodyMedium,
@@ -205,10 +234,7 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
                   onTap: () => _changeStatus(book),
                   borderRadius: BorderRadius.circular(12),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 12,
-                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                     decoration: BoxDecoration(
                       color: AppColors.statusColor(book.status.index)
                           .withValues(alpha: 0.12),
@@ -218,8 +244,7 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Container(
-                          width: 10,
-                          height: 10,
+                          width: 10, height: 10,
                           decoration: BoxDecoration(
                             color: AppColors.statusColor(book.status.index),
                             shape: BoxShape.circle,
@@ -227,7 +252,7 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
                         ),
                         const SizedBox(width: 10),
                         Text(
-                          '${book.status.emoji} ${book.status.label}',
+                          book.status.label,
                           style: TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w600,
@@ -235,26 +260,81 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
                           ),
                         ),
                         const SizedBox(width: 6),
-                        Icon(
-                          Icons.keyboard_arrow_down_rounded,
-                          color: AppColors.statusColor(book.status.index),
-                          size: 20,
-                        ),
+                        Icon(Icons.keyboard_arrow_down_rounded,
+                            color: AppColors.statusColor(book.status.index), size: 20),
                       ],
                     ),
                   ),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 20),
+
+                // 독서 기간
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceVariant,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('📅 독서 기간',
+                          style: TextStyle(
+                              fontSize: 14, fontWeight: FontWeight.w600,
+                              color: AppColors.textPrimary)),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _DateChip(
+                              label: '시작',
+                              date: book.startedAt,
+                              formattedDate: book.startedAt != null
+                                  ? dateFmt.format(book.startedAt!)
+                                  : null,
+                              onTap: () => _pickDate(book, isStart: true),
+                            ),
+                          ),
+                          const Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 8),
+                            child: Icon(Icons.arrow_forward_rounded,
+                                size: 16, color: AppColors.textHint),
+                          ),
+                          Expanded(
+                            child: _DateChip(
+                              label: '종료',
+                              date: book.finishedAt,
+                              formattedDate: book.finishedAt != null
+                                  ? dateFmt.format(book.finishedAt!)
+                                  : null,
+                              onTap: () => _pickDate(book, isStart: false),
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (book.startedAt != null && book.finishedAt != null) ...[
+                        const SizedBox(height: 8),
+                        Center(
+                          child: Text(
+                            '${book.finishedAt!.difference(book.startedAt!).inDays}일간 읽음',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: AppColors.accent,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
 
                 // 별점 (완독인 경우)
                 if (book.status == ReadingStatus.finished) ...[
-                  const Text(
-                    '평점',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
+                  const Text('평점',
+                      style: TextStyle(fontSize: 14, color: AppColors.textSecondary)),
                   const SizedBox(height: 8),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -274,16 +354,14 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
                       );
                     }),
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 20),
                 ],
 
                 // 메모
                 Align(
                   alignment: Alignment.centerLeft,
-                  child: Text(
-                    '📝 메모',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
+                  child: Text('📝 메모',
+                      style: Theme.of(context).textTheme.titleMedium),
                 ),
                 const SizedBox(height: 8),
                 TextField(
@@ -300,10 +378,8 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
                   const SizedBox(height: 28),
                   Align(
                     alignment: Alignment.centerLeft,
-                    child: Text(
-                      '📋 책 소개',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
+                    child: Text('📋 책 소개',
+                        style: Theme.of(context).textTheme.titleMedium),
                   ),
                   const SizedBox(height: 8),
                   Container(
@@ -316,9 +392,7 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
                     child: Text(
                       book.description,
                       style: const TextStyle(
-                        fontSize: 14,
-                        color: AppColors.textSecondary,
-                        height: 1.6,
+                        fontSize: 14, color: AppColors.textSecondary, height: 1.6,
                       ),
                     ),
                   ),
@@ -331,6 +405,55 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
           child: CircularProgressIndicator(color: AppColors.primary),
         ),
         error: (e, _) => Center(child: Text('오류: $e')),
+      ),
+    );
+  }
+}
+
+class _DateChip extends StatelessWidget {
+  final String label;
+  final DateTime? date;
+  final String? formattedDate;
+  final VoidCallback onTap;
+
+  const _DateChip({
+    required this.label,
+    required this.date,
+    required this.formattedDate,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: date != null
+                ? AppColors.primary.withValues(alpha: 0.3)
+                : AppColors.textHint.withValues(alpha: 0.2),
+          ),
+        ),
+        child: Column(
+          children: [
+            Text(label,
+                style: const TextStyle(fontSize: 11, color: AppColors.textHint)),
+            const SizedBox(height: 4),
+            Text(
+              formattedDate ?? '탭하여 설정',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: date != null ? FontWeight.w600 : FontWeight.w400,
+                color: date != null ? AppColors.textPrimary : AppColors.textHint,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -1,14 +1,14 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 
 enum ReadingStatus {
-  wantToRead('읽고 싶은', '📚'),
-  reading('읽는 중', '📖'),
-  finished('완독', '✅'),
-  dropped('중단', '⏸️');
+  wantToRead('읽고 싶은'),
+  reading('읽는 중'),
+  finished('완독'),
+  dropped('중단');
 
-  const ReadingStatus(this.label, this.emoji);
+  const ReadingStatus(this.label);
   final String label;
-  final String emoji;
 }
 
 @immutable
@@ -24,7 +24,8 @@ class Book {
   final int? rating; // 0~5
   final String memo;
   final DateTime addedAt;
-  final DateTime? finishedAt;
+  final DateTime? startedAt;   // 읽기 시작한 날
+  final DateTime? finishedAt;  // 다 읽은 날
 
   const Book({
     this.id,
@@ -38,6 +39,7 @@ class Book {
     this.rating,
     this.memo = '',
     required this.addedAt,
+    this.startedAt,
     this.finishedAt,
   });
 
@@ -53,7 +55,10 @@ class Book {
     int? rating,
     String? memo,
     DateTime? addedAt,
+    DateTime? startedAt,
     DateTime? finishedAt,
+    bool clearStartedAt = false,
+    bool clearFinishedAt = false,
   }) {
     return Book(
       id: id ?? this.id,
@@ -67,7 +72,8 @@ class Book {
       rating: rating ?? this.rating,
       memo: memo ?? this.memo,
       addedAt: addedAt ?? this.addedAt,
-      finishedAt: finishedAt ?? this.finishedAt,
+      startedAt: clearStartedAt ? null : (startedAt ?? this.startedAt),
+      finishedAt: clearFinishedAt ? null : (finishedAt ?? this.finishedAt),
     );
   }
 
@@ -84,6 +90,7 @@ class Book {
       'rating': rating,
       'memo': memo,
       'addedAt': addedAt.millisecondsSinceEpoch,
+      'startedAt': startedAt?.millisecondsSinceEpoch,
       'finishedAt': finishedAt?.millisecondsSinceEpoch,
     };
   }
@@ -101,11 +108,63 @@ class Book {
       rating: map['rating'] as int?,
       memo: map['memo'] as String? ?? '',
       addedAt: DateTime.fromMillisecondsSinceEpoch(map['addedAt'] as int),
+      startedAt: map['startedAt'] != null
+          ? DateTime.fromMillisecondsSinceEpoch(map['startedAt'] as int)
+          : null,
       finishedAt: map['finishedAt'] != null
           ? DateTime.fromMillisecondsSinceEpoch(map['finishedAt'] as int)
           : null,
     );
   }
+
+  /// JSON export용
+  Map<String, dynamic> toJson() {
+    return {
+      'title': title,
+      'author': author,
+      'publisher': publisher,
+      'isbn': isbn,
+      'thumbnailUrl': thumbnailUrl,
+      'description': description,
+      'status': status.name,
+      'rating': rating,
+      'memo': memo,
+      'addedAt': addedAt.toIso8601String(),
+      'startedAt': startedAt?.toIso8601String(),
+      'finishedAt': finishedAt?.toIso8601String(),
+    };
+  }
+
+  factory Book.fromJson(Map<String, dynamic> json) {
+    final statusStr = json['status'] as String? ?? 'wantToRead';
+    final status = ReadingStatus.values.firstWhere(
+      (s) => s.name == statusStr,
+      orElse: () => ReadingStatus.wantToRead,
+    );
+
+    return Book(
+      title: json['title'] as String? ?? '',
+      author: json['author'] as String? ?? '',
+      publisher: json['publisher'] as String? ?? '',
+      isbn: json['isbn'] as String? ?? '',
+      thumbnailUrl: json['thumbnailUrl'] as String? ?? '',
+      description: json['description'] as String? ?? '',
+      status: status,
+      rating: json['rating'] as int?,
+      memo: json['memo'] as String? ?? '',
+      addedAt: json['addedAt'] != null
+          ? DateTime.parse(json['addedAt'] as String)
+          : DateTime.now(),
+      startedAt: json['startedAt'] != null
+          ? DateTime.parse(json['startedAt'] as String)
+          : null,
+      finishedAt: json['finishedAt'] != null
+          ? DateTime.parse(json['finishedAt'] as String)
+          : null,
+    );
+  }
+
+  String toJsonString() => jsonEncode(toJson());
 
   @override
   bool operator ==(Object other) =>
