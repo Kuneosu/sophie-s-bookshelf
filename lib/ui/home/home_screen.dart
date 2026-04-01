@@ -51,7 +51,7 @@ class HomeScreen extends ConsumerWidget {
                 if (books.isEmpty) {
                   return EmptyState(
                     title: selectedFilter != null
-                        ? '\'\${selectedFilter.label}\' 상태의 책이 없어요'
+                        ? '"${selectedFilter.label}" 상태의 책이 없어요'
                         : '아직 등록된 책이 없어요',
                     subtitle: '오른쪽 위 검색 버튼으로 책을 추가해보세요',
                     action: selectedFilter != null
@@ -114,7 +114,7 @@ class _FilterChips extends StatelessWidget {
           const SizedBox(width: 8),
           ...ReadingStatus.values.map((s) => Padding(
                 padding: const EdgeInsets.only(right: 8),
-                child: _chip(context, '\${s.emoji} \${s.label}', s),
+                child: _chip(context, '${s.emoji} ${s.label}', s),
               )),
         ],
       ),

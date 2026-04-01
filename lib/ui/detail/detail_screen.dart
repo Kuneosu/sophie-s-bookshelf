@@ -194,7 +194,7 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
 
                 // 저자 · 출판사
                 Text(
-                  '\${book.author} · \${book.publisher}',
+                  '${book.author} · ${book.publisher}',
                   style: Theme.of(context).textTheme.bodyMedium,
                   textAlign: TextAlign.center,
                 ),
@@ -227,7 +227,7 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
                         ),
                         const SizedBox(width: 10),
                         Text(
-                          '\${book.status.emoji} \${book.status.label}',
+                          '${book.status.emoji} ${book.status.label}',
                           style: TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w600,

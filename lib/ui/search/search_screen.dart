@@ -79,7 +79,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('\'\${book.title}\' 추가 완료!'),
+          content: Text('"${book.title}" 추가 완료!'),
           behavior: SnackBarBehavior.floating,
           backgroundColor: AppColors.primary,
         ),
@@ -279,7 +279,7 @@ class _SearchResultTile extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '\${book.author} · \${book.publisher}',
+                    '${book.author} · ${book.publisher}',
                     style: const TextStyle(
                       fontSize: 13,
                       color: AppColors.textSecondary,

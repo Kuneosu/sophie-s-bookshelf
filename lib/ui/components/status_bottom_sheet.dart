@@ -97,7 +97,7 @@ class _StatusTile extends StatelessWidget {
             ),
             const SizedBox(width: 14),
             Text(
-              '\${status.emoji}  \${status.label}',
+              '${status.emoji}  ${status.label}',
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
