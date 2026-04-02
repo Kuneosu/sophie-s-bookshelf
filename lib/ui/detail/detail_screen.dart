@@ -279,7 +279,7 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('📅 독서 기간',
+                      const Text('독서 기간',
                           style: TextStyle(
                               fontSize: 14, fontWeight: FontWeight.w600,
                               color: AppColors.textPrimary)),
@@ -360,7 +360,7 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
                 // 메모
                 Align(
                   alignment: Alignment.centerLeft,
-                  child: Text('📝 메모',
+                  child: Text('메모',
                       style: Theme.of(context).textTheme.titleMedium),
                 ),
                 const SizedBox(height: 8),
@@ -378,7 +378,7 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
                   const SizedBox(height: 28),
                   Align(
                     alignment: Alignment.centerLeft,
-                    child: Text('📋 책 소개',
+                    child: Text('책 소개',
                         style: Theme.of(context).textTheme.titleMedium),
                   ),
                   const SizedBox(height: 8),

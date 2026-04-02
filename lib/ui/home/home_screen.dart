@@ -8,7 +8,7 @@ import '../components/empty_state.dart';
 import '../components/status_bottom_sheet.dart';
 import '../theme/app_colors.dart';
 
-class HomeScreen extends ConsumerWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   final void Function(int bookId) onBookTap;
   final VoidCallback onSearchTap;
   final VoidCallback onSettingsTap;
@@ -21,7 +21,31 @@ class HomeScreen extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends ConsumerState<HomeScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // 홈 진입 시 자동 동기화
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(syncProvider.notifier).sync();
+    });
+  }
+
+  Future<void> _onRefresh() async {
+    // pull-to-refresh: 동기화 + 목록 갱신
+    final repo = ref.read(bookRepositoryProvider);
+    await repo.syncAll();
+    ref.read(booksRefreshProvider.notifier).refresh();
+    ref.invalidate(filteredBooksProvider);
+    ref.invalidate(groupedBooksProvider);
+    ref.invalidate(booksProvider);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final groupedAsync = ref.watch(groupedBooksProvider);
     final selectedFilter = ref.watch(selectedStatusFilterProvider);
     final viewMode = ref.watch(viewModeProvider);
@@ -38,8 +62,9 @@ class HomeScreen extends ConsumerWidget {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
             ),
-            onSelected: (mode) =>
-                ref.read(groupModeProvider.notifier).set(mode),
+            onSelected: (mode) {
+                ref.read(groupModeProvider.notifier).set(mode);
+            },
             itemBuilder: (_) => [
               _groupMenuItem(GroupMode.none, '정렬 없음', groupMode),
               _groupMenuItem(GroupMode.author, '작가별', groupMode),
@@ -60,13 +85,13 @@ class HomeScreen extends ConsumerWidget {
           // 검색
           IconButton(
             icon: const Icon(Icons.search_rounded),
-            onPressed: onSearchTap,
+            onPressed: widget.onSearchTap,
             tooltip: '책 검색',
           ),
           // 설정 (import/export)
           IconButton(
             icon: const Icon(Icons.more_vert_rounded),
-            onPressed: onSettingsTap,
+            onPressed: widget.onSettingsTap,
             tooltip: '설정',
           ),
         ],
@@ -106,11 +131,14 @@ class HomeScreen extends ConsumerWidget {
                   );
                 }
 
-                return _GroupedBookView(
-                  grouped: grouped,
-                  viewMode: viewMode,
-                  showHeaders: groupMode != GroupMode.none,
-                  onBookTap: onBookTap,
+                return RefreshIndicator(
+                  onRefresh: _onRefresh,
+                  color: AppColors.primary,
+                  child: _GroupedBookView(
+                    grouped: grouped,
+                    viewMode: viewMode,
+                    showHeaders: groupMode != GroupMode.none,
+                    onBookTap: widget.onBookTap,
                   onStatusChange: (book, status) async {
                     final repo = ref.read(bookRepositoryProvider);
                     await repo.updateStatus(book.id!, status);
@@ -118,13 +146,14 @@ class HomeScreen extends ConsumerWidget {
                     ref.invalidate(filteredBooksProvider);
                     ref.invalidate(groupedBooksProvider);
                   },
+                  ),
                 );
               },
               loading: () => const Center(
                 child: CircularProgressIndicator(color: AppColors.primary),
               ),
               error: (e, _) => EmptyState(
-                emoji: '😥',
+                icon: Icons.error_outline_rounded,
                 title: '오류가 발생했어요',
                 subtitle: e.toString(),
               ),
@@ -133,7 +162,7 @@ class HomeScreen extends ConsumerWidget {
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: onSearchTap,
+        onPressed: widget.onSearchTap,
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),

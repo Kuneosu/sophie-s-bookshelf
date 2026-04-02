@@ -6,7 +6,10 @@ import 'package:intl/intl.dart';
 import 'auth_providers.dart';
 
 // Repositories
-final bookRepositoryProvider = Provider((ref) => BookRepository());
+final bookRepositoryProvider = Provider((ref) {
+  // 싱글턴으로 유지해야 동기화 상태가 일관됨
+  return BookRepository();
+});
 final searchRepositoryProvider = Provider((ref) => SearchRepository());
 
 // 전체 책 목록
@@ -159,6 +162,7 @@ class SyncNotifier extends Notifier<SyncStatus> {
       ref.read(booksRefreshProvider.notifier).refresh();
       ref.invalidate(filteredBooksProvider);
       ref.invalidate(groupedBooksProvider);
+      ref.invalidate(booksProvider);
 
       // 3초 후 idle로 복원
       await Future.delayed(const Duration(seconds: 3));

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:go_router/go_router.dart';
 import '../../domain/model/book.dart';
 import '../../providers/book_providers.dart';
 import '../components/status_bottom_sheet.dart';
@@ -72,18 +73,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       finishedAt: status == ReadingStatus.finished ? DateTime.now() : null,
     );
 
-    await repo.addBook(bookToSave);
+    final newId = await repo.addBook(bookToSave);
     ref.invalidate(filteredBooksProvider);
     ref.read(booksRefreshProvider.notifier).refresh();
 
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('"${book.title}" 추가 완료!'),
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: AppColors.primary,
-        ),
-      );
+      // 추가된 책의 상세 페이지로 바로 이동
+      context.go('/detail/$newId');
     }
   }
 
@@ -131,13 +127,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             child: searchResults.when(
               data: (books) {
                 if (ref.read(searchQueryProvider).isEmpty) {
-                  return const Center(
+                  return Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text('🔍', style: TextStyle(fontSize: 48)),
-                        SizedBox(height: 12),
-                        Text(
+                        Icon(Icons.search_rounded, size: 48, color: AppColors.textHint),
+                        const SizedBox(height: 12),
+                        const Text(
                           '읽고 싶은 책을 검색해보세요',
                           style: TextStyle(
                             color: AppColors.textSecondary,
@@ -149,13 +145,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   );
                 }
                 if (books.isEmpty) {
-                  return const Center(
+                  return Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text('😅', style: TextStyle(fontSize: 48)),
-                        SizedBox(height: 12),
-                        Text(
+                        Icon(Icons.search_off_rounded, size: 48, color: AppColors.textHint),
+                        const SizedBox(height: 12),
+                        const Text(
                           '검색 결과가 없어요',
                           style: TextStyle(
                             color: AppColors.textSecondary,
@@ -185,11 +181,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Text('😥', style: TextStyle(fontSize: 48)),
+                    Icon(Icons.error_outline_rounded, size: 48, color: AppColors.textHint),
                     const SizedBox(height: 12),
-                    Text(
+                    const Text(
                       '검색 중 오류가 발생했어요',
-                      style: const TextStyle(color: AppColors.textSecondary),
+                      style: TextStyle(color: AppColors.textSecondary),
                     ),
                     const SizedBox(height: 4),
                     Text(

@@ -2,14 +2,14 @@ import 'package:flutter/material.dart';
 import '../theme/app_colors.dart';
 
 class EmptyState extends StatelessWidget {
-  final String emoji;
+  final IconData icon;
   final String title;
   final String subtitle;
   final Widget? action;
 
   const EmptyState({
     super.key,
-    this.emoji = '📚',
+    this.icon = Icons.menu_book_rounded,
     required this.title,
     this.subtitle = '',
     this.action,
@@ -23,7 +23,7 @@ class EmptyState extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(emoji, style: const TextStyle(fontSize: 64)),
+            Icon(icon, size: 64, color: AppColors.textHint),
             const SizedBox(height: 16),
             Text(
               title,

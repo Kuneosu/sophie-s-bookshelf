@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' as supa;
 import '../data/remote/supabase_service.dart';
+import 'book_providers.dart';
 
 // ─── SupabaseService Provider ───
 final supabaseServiceProvider = Provider((ref) => SupabaseService());
@@ -104,6 +105,8 @@ class AuthNotifier extends Notifier<AuthState> {
           status: AuthStatus.authenticated,
           user: response.user,
         );
+        // 로그인 성공 시 동기화 트리거
+        _triggerSync();
         return true;
       } else {
         state = state.copyWith(
@@ -180,6 +183,16 @@ class AuthNotifier extends Notifier<AuthState> {
         errorMessage: '로그아웃에 실패했습니다.',
       );
     }
+  }
+
+  /// 로그인/회원가입 후 동기화 트리거
+  void _triggerSync() {
+    // 약간의 딜레이 후 동기화 (라우트 전환 완료 후)
+    Future.delayed(const Duration(milliseconds: 500), () {
+      try {
+        ref.read(syncProvider.notifier).sync();
+      } catch (_) {}
+    });
   }
 
   /// 에러 클리어
