@@ -105,6 +105,22 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
     ref.read(booksRefreshProvider.notifier).refresh();
   }
 
+  /// 카카오 API에서 잘린 텍스트를 마지막 완전한 문장까지만 표시
+  String _cleanDescription(String text) {
+    var cleaned = text.trim();
+    // "..."으로 끝나는 잘린 텍스트 처리
+    if (cleaned.endsWith('...')) {
+      cleaned = cleaned.substring(0, cleaned.length - 3).trim();
+    }
+    // 마지막 완전한 문장 찾기 (. ! ? 로 끝나는 지점)
+    final lastSentenceEnd = cleaned.lastIndexOf(RegExp(r'[.!?。]'));
+    if (lastSentenceEnd > cleaned.length * 0.3) {
+      // 전체 길이의 30% 이후에 문장 끝이 있으면 거기서 자름
+      cleaned = cleaned.substring(0, lastSentenceEnd + 1);
+    }
+    return cleaned;
+  }
+
   Future<void> _deleteBook() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -391,7 +407,7 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
-                      book.description,
+                      _cleanDescription(book.description),
                       style: const TextStyle(
                         fontSize: 14, color: AppColors.textSecondary, height: 1.6,
                       ),

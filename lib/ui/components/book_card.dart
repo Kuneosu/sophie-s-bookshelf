@@ -23,8 +23,9 @@ class BookCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 책 표지
-          Expanded(
+          // 책 표지 (고정 높이)
+          SizedBox(
+            height: 150,
             child: Container(
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(12),

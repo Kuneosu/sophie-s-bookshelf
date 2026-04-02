@@ -1,7 +1,7 @@
 name: bookshelf
-description: "따뜻한 서재 느낌의 독서 기록 앱"
+description: "소피의 서재 — 따뜻한 독서 기록 앱"
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.1.0+2
 
 environment:
   sdk: ^3.11.4

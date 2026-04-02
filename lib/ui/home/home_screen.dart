@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -72,7 +74,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final groupedAsync = ref.watch(groupedBooksProvider);
     final selectedFilter = ref.watch(selectedStatusFilterProvider);
     final viewMode = ref.watch(viewModeProvider);
-    final groupMode = ref.watch(groupModeProvider);
+    final sortMode = ref.watch(sortModeProvider);
 
     return PopScope(
       canPop: false,
@@ -82,22 +84,42 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       },
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('내 서재'),
+          title: const Text('소피의 서재'),
           automaticallyImplyLeading: false, // 뒤로가기 화살표 제거
           actions: [
-            PopupMenuButton<GroupMode>(
-              icon: const Icon(Icons.filter_list_rounded, size: 22),
-              tooltip: '그룹',
+            // macOS/데스크탑: 새로고침 버튼
+            if (!kIsWeb && (Platform.isMacOS || Platform.isLinux || Platform.isWindows))
+              IconButton(
+                icon: const Icon(Icons.refresh_rounded, size: 22),
+                tooltip: '새로고침',
+                onPressed: () async {
+                  final messenger = ScaffoldMessenger.of(context);
+                  await _onRefresh();
+                  if (mounted) {
+                    messenger.showSnackBar(
+                      const SnackBar(
+                        content: Text('동기화 완료'),
+                        duration: Duration(seconds: 1),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  }
+                },
+              ),
+            PopupMenuButton<SortMode>(
+              icon: const Icon(Icons.sort_rounded, size: 22),
+              tooltip: '정렬',
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
               onSelected: (mode) {
-                ref.read(groupModeProvider.notifier).set(mode);
+                ref.read(sortModeProvider.notifier).set(mode);
               },
               itemBuilder: (_) => [
-                _groupMenuItem(GroupMode.none, '정렬 없음', groupMode),
-                _groupMenuItem(GroupMode.author, '작가별', groupMode),
-                _groupMenuItem(GroupMode.finishedMonth, '읽은 날짜별', groupMode),
+                _sortMenuItem(SortMode.status, '기본 정렬', sortMode),
+                _sortMenuItem(SortMode.title, '이름순', sortMode),
+                _sortMenuItem(SortMode.author, '작가별', sortMode),
+                _sortMenuItem(SortMode.date, '날짜별', sortMode),
               ],
             ),
             IconButton(
@@ -174,7 +196,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     child: _GroupedBookView(
                       grouped: grouped,
                       viewMode: viewMode,
-                      showHeaders: groupMode != GroupMode.none,
+                      showHeaders: sortMode != SortMode.title,
                       onBookTap: widget.onBookTap,
                       onStatusChange: (book, status) async {
                         final repo = ref.read(bookRepositoryProvider);
@@ -210,8 +232,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  PopupMenuItem<GroupMode> _groupMenuItem(
-      GroupMode mode, String label, GroupMode current) {
+  PopupMenuItem<SortMode> _sortMenuItem(
+      SortMode mode, String label, SortMode current) {
     return PopupMenuItem(
       value: mode,
       child: Row(
@@ -356,9 +378,9 @@ class _GroupedBookView extends StatelessWidget {
                 ),
                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 3,
-                  childAspectRatio: 0.55,
+                  childAspectRatio: 0.48,
                   crossAxisSpacing: 14,
-                  mainAxisSpacing: 18,
+                  mainAxisSpacing: 14,
                 ),
               ),
             )

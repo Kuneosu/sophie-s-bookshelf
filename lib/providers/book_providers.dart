@@ -41,38 +41,70 @@ final filteredBooksProvider = FutureProvider<List<Book>>((ref) async {
   return repo.getBooksByStatus(filter);
 });
 
-// 그룹핑 모드
-enum GroupMode { none, author, finishedMonth }
+// 정렬 모드
+enum SortMode { status, title, author, date }
 
-class GroupModeNotifier extends Notifier<GroupMode> {
+class SortModeNotifier extends Notifier<SortMode> {
   @override
-  GroupMode build() => GroupMode.none;
-  void set(GroupMode mode) => state = mode;
+  SortMode build() => SortMode.status;
+  void set(SortMode mode) => state = mode;
 }
 
-final groupModeProvider =
-    NotifierProvider<GroupModeNotifier, GroupMode>(GroupModeNotifier.new);
+final sortModeProvider =
+    NotifierProvider<SortModeNotifier, SortMode>(SortModeNotifier.new);
 
-// 그룹핑된 책 목록
+// 상태 우선순위: 읽는중(1) > 읽고싶은(0) > 완독(2) > 중단(3)
+int _statusPriority(ReadingStatus status) {
+  switch (status) {
+    case ReadingStatus.reading:
+      return 0;
+    case ReadingStatus.wantToRead:
+      return 1;
+    case ReadingStatus.finished:
+      return 2;
+    case ReadingStatus.dropped:
+      return 3;
+  }
+}
+
+// 정렬된 책 목록 (그룹핑 포함)
 final groupedBooksProvider =
     FutureProvider<Map<String, List<Book>>>((ref) async {
   final books = await ref.watch(filteredBooksProvider.future);
-  final groupMode = ref.watch(groupModeProvider);
+  final sortMode = ref.watch(sortModeProvider);
 
-  switch (groupMode) {
-    case GroupMode.none:
-      return {'': books};
-    case GroupMode.author:
+  switch (sortMode) {
+    case SortMode.status:
+      // 상태별 그룹핑 + 우선순위 정렬
+      final map = <String, List<Book>>{};
+      final sorted = List<Book>.from(books)
+        ..sort((a, b) {
+          final cmp = _statusPriority(a.status).compareTo(_statusPriority(b.status));
+          if (cmp != 0) return cmp;
+          return b.addedAt.compareTo(a.addedAt);
+        });
+      for (final book in sorted) {
+        final key = book.status.label;
+        map.putIfAbsent(key, () => []).add(book);
+      }
+      return map;
+
+    case SortMode.title:
+      final sorted = List<Book>.from(books)
+        ..sort((a, b) => a.title.compareTo(b.title));
+      return {'': sorted};
+
+    case SortMode.author:
       final map = <String, List<Book>>{};
       for (final book in books) {
         final key = book.author.isNotEmpty ? book.author : '작가 미상';
         map.putIfAbsent(key, () => []).add(book);
       }
-      // 가나다순 정렬
       return Map.fromEntries(
         map.entries.toList()..sort((a, b) => a.key.compareTo(b.key)),
       );
-    case GroupMode.finishedMonth:
+
+    case SortMode.date:
       final map = <String, List<Book>>{};
       final fmt = DateFormat('yyyy년 M월');
       for (final book in books) {
@@ -80,7 +112,6 @@ final groupedBooksProvider =
             book.finishedAt != null ? fmt.format(book.finishedAt!) : '미완독';
         map.putIfAbsent(key, () => []).add(book);
       }
-      // 최신순 정렬 (미완독은 맨 뒤)
       return Map.fromEntries(
         map.entries.toList()
           ..sort((a, b) {
@@ -97,7 +128,7 @@ enum ViewMode { gallery, list }
 
 class ViewModeNotifier extends Notifier<ViewMode> {
   @override
-  ViewMode build() => ViewMode.gallery;
+  ViewMode build() => ViewMode.list;
   void toggle() {
     state = state == ViewMode.gallery ? ViewMode.list : ViewMode.gallery;
   }
