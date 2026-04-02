@@ -102,6 +102,7 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
     final updated = book.copyWith(rating: rating);
     await ref.read(bookRepositoryProvider).updateBook(updated);
     ref.invalidate(bookDetailProvider(widget.bookId));
+    ref.read(booksRefreshProvider.notifier).refresh();
   }
 
   Future<void> _deleteBook() async {

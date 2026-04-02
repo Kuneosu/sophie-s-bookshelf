@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/model/book.dart';
 import '../../providers/book_providers.dart';
@@ -25,6 +26,8 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
+  DateTime? _lastBackPress;
+
   @override
   void initState() {
     super.initState();
@@ -35,13 +38,33 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Future<void> _onRefresh() async {
-    // pull-to-refresh: 동기화 + 목록 갱신
     final repo = ref.read(bookRepositoryProvider);
     await repo.syncAll();
     ref.read(booksRefreshProvider.notifier).refresh();
     ref.invalidate(filteredBooksProvider);
     ref.invalidate(groupedBooksProvider);
     ref.invalidate(booksProvider);
+  }
+
+  Future<bool> _onWillPop() async {
+    final now = DateTime.now();
+    if (_lastBackPress != null &&
+        now.difference(_lastBackPress!) < const Duration(seconds: 2)) {
+      // 2초 내 두 번 → 종료
+      SystemNavigator.pop();
+      return true;
+    }
+    _lastBackPress = now;
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('한 번 더 누르면 앱이 종료됩니다'),
+          duration: Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+    return false;
   }
 
   @override
@@ -55,158 +78,135 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       canPop: false,
       onPopInvokedWithResult: (didPop, _) async {
         if (didPop) return;
-        final shouldExit = await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('앱 종료'),
-            content: const Text('앱을 종료할까요?'),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('취소'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('종료'),
-              ),
-            ],
-          ),
-        );
-        if (shouldExit == true && context.mounted) {
-          Navigator.of(context).pop();
-        }
+        await _onWillPop();
       },
       child: Scaffold(
-      appBar: AppBar(
-        title: const Text('내 서재'),
-        actions: [
-          // 그룹핑 메뉴
-          PopupMenuButton<GroupMode>(
-            icon: const Icon(Icons.filter_list_rounded, size: 22),
-            tooltip: '그룹',
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            onSelected: (mode) {
+        appBar: AppBar(
+          title: const Text('내 서재'),
+          automaticallyImplyLeading: false, // 뒤로가기 화살표 제거
+          actions: [
+            PopupMenuButton<GroupMode>(
+              icon: const Icon(Icons.filter_list_rounded, size: 22),
+              tooltip: '그룹',
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              onSelected: (mode) {
                 ref.read(groupModeProvider.notifier).set(mode);
-            },
-            itemBuilder: (_) => [
-              _groupMenuItem(GroupMode.none, '정렬 없음', groupMode),
-              _groupMenuItem(GroupMode.author, '작가별', groupMode),
-              _groupMenuItem(GroupMode.finishedMonth, '읽은 날짜별', groupMode),
-            ],
-          ),
-          // 뷰 모드 전환
-          IconButton(
-            icon: Icon(
-              viewMode == ViewMode.gallery
-                  ? Icons.view_list_rounded
-                  : Icons.grid_view_rounded,
-              size: 22,
+              },
+              itemBuilder: (_) => [
+                _groupMenuItem(GroupMode.none, '정렬 없음', groupMode),
+                _groupMenuItem(GroupMode.author, '작가별', groupMode),
+                _groupMenuItem(GroupMode.finishedMonth, '읽은 날짜별', groupMode),
+              ],
             ),
-            tooltip: viewMode == ViewMode.gallery ? '리스트 뷰' : '갤러리 뷰',
-            onPressed: () => ref.read(viewModeProvider.notifier).toggle(),
-          ),
-          // 검색
-          IconButton(
-            icon: const Icon(Icons.search_rounded),
-            onPressed: widget.onSearchTap,
-            tooltip: '책 검색',
-          ),
-          // 설정 (import/export)
-          IconButton(
-            icon: const Icon(Icons.more_vert_rounded),
-            onPressed: widget.onSettingsTap,
-            tooltip: '설정',
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          // 상태 필터 칩 (이모지 제거)
-          _FilterChips(
-            selected: selectedFilter,
-            onSelected: (status) {
-              ref.read(selectedStatusFilterProvider.notifier).set(status);
-            },
-          ),
-          // 책 목록
-          Expanded(
-            child: groupedAsync.when(
-              data: (grouped) {
-                final totalBooks =
-                    grouped.values.fold<int>(0, (sum, list) => sum + list.length);
+            IconButton(
+              icon: Icon(
+                viewMode == ViewMode.gallery
+                    ? Icons.view_list_rounded
+                    : Icons.grid_view_rounded,
+                size: 22,
+              ),
+              tooltip: viewMode == ViewMode.gallery ? '리스트 뷰' : '갤러리 뷰',
+              onPressed: () => ref.read(viewModeProvider.notifier).toggle(),
+            ),
+            IconButton(
+              icon: const Icon(Icons.search_rounded),
+              onPressed: widget.onSearchTap,
+              tooltip: '책 검색',
+            ),
+            IconButton(
+              icon: const Icon(Icons.more_vert_rounded),
+              onPressed: widget.onSettingsTap,
+              tooltip: '설정',
+            ),
+          ],
+        ),
+        body: Column(
+          children: [
+            _FilterChips(
+              selected: selectedFilter,
+              onSelected: (status) {
+                ref.read(selectedStatusFilterProvider.notifier).set(status);
+              },
+            ),
+            Expanded(
+              child: groupedAsync.when(
+                data: (grouped) {
+                  final totalBooks = grouped.values
+                      .fold<int>(0, (sum, list) => sum + list.length);
 
-                if (totalBooks == 0) {
+                  if (totalBooks == 0) {
+                    return RefreshIndicator(
+                      onRefresh: _onRefresh,
+                      color: AppColors.primary,
+                      child: ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        children: [
+                          SizedBox(
+                            height: MediaQuery.of(context).size.height * 0.6,
+                            child: EmptyState(
+                              title: selectedFilter != null
+                                  ? '"${selectedFilter.label}" 상태의 책이 없어요'
+                                  : '아직 등록된 책이 없어요',
+                              subtitle: '오른쪽 위 검색 버튼으로 책을 추가해보세요',
+                              action: selectedFilter != null
+                                  ? TextButton(
+                                      onPressed: () {
+                                        ref
+                                            .read(selectedStatusFilterProvider
+                                                .notifier)
+                                            .set(null);
+                                      },
+                                      child: const Text('전체 보기'),
+                                    )
+                                  : null,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+
                   return RefreshIndicator(
                     onRefresh: _onRefresh,
                     color: AppColors.primary,
-                    child: ListView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      children: [
-                        SizedBox(
-                          height: MediaQuery.of(context).size.height * 0.6,
-                          child: EmptyState(
-                            title: selectedFilter != null
-                                ? '"${selectedFilter.label}" 상태의 책이 없어요'
-                                : '아직 등록된 책이 없어요',
-                            subtitle: '오른쪽 위 검색 버튼으로 책을 추가해보세요',
-                            action: selectedFilter != null
-                                ? TextButton(
-                                    onPressed: () {
-                                      ref
-                                          .read(selectedStatusFilterProvider.notifier)
-                                          .set(null);
-                                    },
-                                    child: const Text('전체 보기'),
-                                  )
-                                : null,
-                          ),
-                        ),
-                      ],
+                    child: _GroupedBookView(
+                      grouped: grouped,
+                      viewMode: viewMode,
+                      showHeaders: groupMode != GroupMode.none,
+                      onBookTap: widget.onBookTap,
+                      onStatusChange: (book, status) async {
+                        final repo = ref.read(bookRepositoryProvider);
+                        await repo.updateStatus(book.id!, status);
+                        ref.read(booksRefreshProvider.notifier).refresh();
+                        ref.invalidate(filteredBooksProvider);
+                        ref.invalidate(groupedBooksProvider);
+                      },
                     ),
                   );
-                }
-
-                return RefreshIndicator(
-                  onRefresh: _onRefresh,
-                  color: AppColors.primary,
-                  child: _GroupedBookView(
-                    grouped: grouped,
-                    viewMode: viewMode,
-                    showHeaders: groupMode != GroupMode.none,
-                    onBookTap: widget.onBookTap,
-                  onStatusChange: (book, status) async {
-                    final repo = ref.read(bookRepositoryProvider);
-                    await repo.updateStatus(book.id!, status);
-                    ref.read(booksRefreshProvider.notifier).refresh();
-                    ref.invalidate(filteredBooksProvider);
-                    ref.invalidate(groupedBooksProvider);
-                  },
-                  ),
-                );
-              },
-              loading: () => const Center(
-                child: CircularProgressIndicator(color: AppColors.primary),
-              ),
-              error: (e, _) => EmptyState(
-                icon: Icons.error_outline_rounded,
-                title: '오류가 발생했어요',
-                subtitle: e.toString(),
+                },
+                loading: () => const Center(
+                  child: CircularProgressIndicator(color: AppColors.primary),
+                ),
+                error: (e, _) => EmptyState(
+                  icon: Icons.error_outline_rounded,
+                  title: '오류가 발생했어요',
+                  subtitle: e.toString(),
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
+        floatingActionButton: FloatingActionButton(
+          onPressed: widget.onSearchTap,
+          backgroundColor: AppColors.primary,
+          foregroundColor: Colors.white,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: const Icon(Icons.add_rounded),
+        ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: widget.onSearchTap,
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: const Icon(Icons.add_rounded),
-      ),
-    ),
     );
   }
 
@@ -217,7 +217,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       child: Row(
         children: [
           if (mode == current)
-            const Icon(Icons.check_rounded, size: 18, color: AppColors.primary)
+            const Icon(Icons.check_rounded,
+                size: 18, color: AppColors.primary)
           else
             const SizedBox(width: 18),
           const SizedBox(width: 8),
@@ -228,7 +229,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 }
 
-// ---- 필터 칩 (이모지 제거) ----
+// ---- 필터 칩 ----
 class _FilterChips extends StatelessWidget {
   final ReadingStatus? selected;
   final ValueChanged<ReadingStatus?> onSelected;
@@ -300,9 +301,9 @@ class _GroupedBookView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return CustomScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
       slivers: [
         for (final entry in grouped.entries) ...[
-          // 그룹 헤더
           if (showHeaders && entry.key.isNotEmpty)
             SliverToBoxAdapter(
               child: Padding(
@@ -338,7 +339,6 @@ class _GroupedBookView extends StatelessWidget {
                 ),
               ),
             ),
-          // 책 목록
           if (viewMode == ViewMode.gallery)
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
@@ -383,7 +383,6 @@ class _GroupedBookView extends StatelessWidget {
               ),
             ),
         ],
-        // 하단 패딩 (FAB 가리지 않도록)
         const SliverPadding(padding: EdgeInsets.only(bottom: 100)),
       ],
     );

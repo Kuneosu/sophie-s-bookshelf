@@ -78,14 +78,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     ref.read(booksRefreshProvider.notifier).refresh();
 
     if (mounted) {
-      // 홈으로 돌아간 뒤 상세 페이지로 이동 (뒤로가기 시 홈으로)
-      context.go('/');
-      // 약간의 딜레이 후 push (라우트 전환 완료 후)
-      Future.delayed(const Duration(milliseconds: 100), () {
-        if (mounted) {
-          context.push('/detail/$newId');
-        }
-      });
+      // 검색 화면을 상세 화면으로 교체 (뒤로가기 → 홈)
+      context.pop(); // 검색 화면 닫기
+      context.push('/detail/$newId'); // 홈 위에 상세 push
     }
   }
 
