@@ -53,10 +53,25 @@ class BookRepository {
     final book = await _dao.getBookById(id);
     if (book == null) return;
 
-    if (_isLoggedIn && book.supabaseId != null) {
-      // 소프트 삭제 → 동기화 후 물리 삭제
-      await _dao.softDeleteBook(id);
-      _syncSingleDelete(book);
+    if (_isLoggedIn) {
+      if (book.supabaseId != null) {
+        // 원격에 있는 책 → 원격 삭제 후 로컬도 삭제
+        try {
+          final success = await _remoteDao.deleteBook(book.supabaseId!);
+          if (success) {
+            await _dao.deleteBook(id);
+          } else {
+            // 원격 삭제 실패 → 소프트 삭제 후 나중에 동기화
+            await _dao.softDeleteBook(id);
+          }
+        } catch (e) {
+          debugPrint('deleteBook remote error: $e');
+          await _dao.softDeleteBook(id);
+        }
+      } else {
+        // 원격에 안 올라간 책 → 바로 물리 삭제
+        await _dao.deleteBook(id);
+      }
     } else {
       // 로그인 안 된 상태면 바로 물리 삭제
       await _dao.deleteBook(id);
@@ -153,8 +168,27 @@ class BookRepository {
     for (final remoteBook in remoteBooks) {
       if (remoteBook.supabaseId == null) continue;
 
-      final localBook =
+      // supabase_id로 먼저 찾고, 없으면 ISBN으로도 찾기 (중복 방지)
+      var localBook =
           await _dao.getBookBySupabaseId(remoteBook.supabaseId!);
+
+      // ISBN으로 매칭 시도 (supabase_id가 아직 없는 로컬 책)
+      if (localBook == null && remoteBook.isbn.isNotEmpty) {
+        final isbnExists = await _dao.isBookExists(remoteBook.isbn);
+        if (isbnExists) {
+          // ISBN이 같은 로컬 책에 supabase_id를 매핑
+          final allLocal = await _dao.getAllBooks();
+          localBook = allLocal.where((b) =>
+              b.isbn == remoteBook.isbn && b.supabaseId == null).firstOrNull;
+          if (localBook != null && localBook.id != null) {
+            await _dao.markAsSynced(localBook.id!, remoteBook.supabaseId!);
+            localBook = localBook.copyWith(
+              supabaseId: remoteBook.supabaseId,
+              synced: true,
+            );
+          }
+        }
+      }
 
       if (localBook == null) {
         // 로컬에 없음 → 추가
@@ -201,19 +235,6 @@ class BookRepository {
       }
     } catch (e) {
       debugPrint('syncSingleUpdate error: $e');
-    }
-  }
-
-  Future<void> _syncSingleDelete(Book book) async {
-    try {
-      if (book.supabaseId != null) {
-        final success = await _remoteDao.deleteBook(book.supabaseId!);
-        if (success && book.id != null) {
-          await _dao.deleteBook(book.id!); // 물리 삭제
-        }
-      }
-    } catch (e) {
-      debugPrint('syncSingleDelete error: $e');
     }
   }
 

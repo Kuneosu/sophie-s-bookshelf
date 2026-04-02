@@ -51,7 +51,33 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final viewMode = ref.watch(viewModeProvider);
     final groupMode = ref.watch(groupModeProvider);
 
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        final shouldExit = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('앱 종료'),
+            content: const Text('앱을 종료할까요?'),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('취소'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('종료'),
+              ),
+            ],
+          ),
+        );
+        if (shouldExit == true && context.mounted) {
+          Navigator.of(context).pop();
+        }
+      },
+      child: Scaffold(
       appBar: AppBar(
         title: const Text('내 서재'),
         actions: [
@@ -113,21 +139,33 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     grouped.values.fold<int>(0, (sum, list) => sum + list.length);
 
                 if (totalBooks == 0) {
-                  return EmptyState(
-                    title: selectedFilter != null
-                        ? '"${selectedFilter.label}" 상태의 책이 없어요'
-                        : '아직 등록된 책이 없어요',
-                    subtitle: '오른쪽 위 검색 버튼으로 책을 추가해보세요',
-                    action: selectedFilter != null
-                        ? TextButton(
-                            onPressed: () {
-                              ref
-                                  .read(selectedStatusFilterProvider.notifier)
-                                  .set(null);
-                            },
-                            child: const Text('전체 보기'),
-                          )
-                        : null,
+                  return RefreshIndicator(
+                    onRefresh: _onRefresh,
+                    color: AppColors.primary,
+                    child: ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: [
+                        SizedBox(
+                          height: MediaQuery.of(context).size.height * 0.6,
+                          child: EmptyState(
+                            title: selectedFilter != null
+                                ? '"${selectedFilter.label}" 상태의 책이 없어요'
+                                : '아직 등록된 책이 없어요',
+                            subtitle: '오른쪽 위 검색 버튼으로 책을 추가해보세요',
+                            action: selectedFilter != null
+                                ? TextButton(
+                                    onPressed: () {
+                                      ref
+                                          .read(selectedStatusFilterProvider.notifier)
+                                          .set(null);
+                                    },
+                                    child: const Text('전체 보기'),
+                                  )
+                                : null,
+                          ),
+                        ),
+                      ],
+                    ),
                   );
                 }
 
@@ -168,6 +206,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         child: const Icon(Icons.add_rounded),
       ),
+    ),
     );
   }
 

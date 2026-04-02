@@ -78,8 +78,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     ref.read(booksRefreshProvider.notifier).refresh();
 
     if (mounted) {
-      // 추가된 책의 상세 페이지로 바로 이동
-      context.go('/detail/$newId');
+      // 홈으로 돌아간 뒤 상세 페이지로 이동 (뒤로가기 시 홈으로)
+      context.go('/');
+      // 약간의 딜레이 후 push (라우트 전환 완료 후)
+      Future.delayed(const Duration(milliseconds: 100), () {
+        if (mounted) {
+          context.push('/detail/$newId');
+        }
+      });
     }
   }
 
