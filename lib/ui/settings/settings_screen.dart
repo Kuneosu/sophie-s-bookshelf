@@ -2,8 +2,10 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:intl/intl.dart';
+import '../../providers/auth_providers.dart';
 import '../../providers/book_providers.dart';
 import '../theme/app_colors.dart';
 
@@ -14,6 +16,10 @@ class SettingsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final isLoggedIn = ref.watch(isLoggedInProvider);
+    final userEmail = ref.watch(currentUserEmailProvider);
+    final syncStatus = ref.watch(syncProvider);
+
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
@@ -25,6 +31,51 @@ class SettingsScreen extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          // 계정 섹션
+          const Padding(
+            padding: EdgeInsets.fromLTRB(4, 8, 4, 12),
+            child: Text(
+              '계정',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ),
+          if (isLoggedIn) ...[
+            _SettingsTile(
+              icon: Icons.person_rounded,
+              title: userEmail ?? '로그인됨',
+              subtitle: '로그인 중',
+              onTap: null,
+            ),
+            const SizedBox(height: 8),
+            _SettingsTile(
+              icon: Icons.sync_rounded,
+              title: '동기화',
+              subtitle: _syncStatusText(syncStatus),
+              onTap: syncStatus == SyncStatus.syncing
+                  ? null
+                  : () => ref.read(syncProvider.notifier).sync(),
+            ),
+            const SizedBox(height: 8),
+            _SettingsTile(
+              icon: Icons.logout_rounded,
+              title: '로그아웃',
+              subtitle: '계정에서 로그아웃합니다',
+              onTap: () => _handleLogout(context, ref),
+              dangerous: true,
+            ),
+          ] else
+            _SettingsTile(
+              icon: Icons.login_rounded,
+              title: '로그인',
+              subtitle: '로그인하여 데이터를 동기화하세요',
+              onTap: () => context.go('/login'),
+            ),
+          const SizedBox(height: 24),
+
           // 데이터 섹션
           const Padding(
             padding: EdgeInsets.fromLTRB(4, 8, 4, 12),
@@ -80,6 +131,47 @@ class SettingsScreen extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  String _syncStatusText(SyncStatus status) {
+    switch (status) {
+      case SyncStatus.idle:
+        return '탭하여 동기화';
+      case SyncStatus.syncing:
+        return '동기화 중...';
+      case SyncStatus.success:
+        return '동기화 완료!';
+      case SyncStatus.error:
+        return '동기화 실패 - 다시 시도해주세요';
+    }
+  }
+
+  Future<void> _handleLogout(BuildContext context, WidgetRef ref) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('로그아웃'),
+        content: const Text('로그아웃 하시겠습니까?\n로컬 데이터는 유지됩니다.'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('로그아웃', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true && context.mounted) {
+      await ref.read(authProvider.notifier).signOut();
+      if (context.mounted) {
+        context.go('/login');
+      }
+    }
   }
 
   Future<void> _exportJson(BuildContext context, WidgetRef ref) async {

@@ -3,6 +3,7 @@ import '../data/repository/book_repository.dart';
 import '../data/repository/search_repository.dart';
 import '../domain/model/book.dart';
 import 'package:intl/intl.dart';
+import 'auth_providers.dart';
 
 // Repositories
 final bookRepositoryProvider = Provider((ref) => BookRepository());
@@ -72,7 +73,8 @@ final groupedBooksProvider =
       final map = <String, List<Book>>{};
       final fmt = DateFormat('yyyy년 M월');
       for (final book in books) {
-        final key = book.finishedAt != null ? fmt.format(book.finishedAt!) : '미완독';
+        final key =
+            book.finishedAt != null ? fmt.format(book.finishedAt!) : '미완독';
         map.putIfAbsent(key, () => []).add(book);
       }
       // 최신순 정렬 (미완독은 맨 뒤)
@@ -134,3 +136,40 @@ class BooksRefreshNotifier extends Notifier<int> {
 
 final booksRefreshProvider =
     NotifierProvider<BooksRefreshNotifier, int>(BooksRefreshNotifier.new);
+
+// ─── 동기화 상태 ───
+
+enum SyncStatus { idle, syncing, success, error }
+
+class SyncNotifier extends Notifier<SyncStatus> {
+  @override
+  SyncStatus build() => SyncStatus.idle;
+
+  Future<void> sync() async {
+    final isLoggedIn = ref.read(isLoggedInProvider);
+    if (!isLoggedIn) return;
+
+    state = SyncStatus.syncing;
+    try {
+      final repo = ref.read(bookRepositoryProvider);
+      await repo.syncAll();
+      state = SyncStatus.success;
+
+      // 책 목록 갱신
+      ref.read(booksRefreshProvider.notifier).refresh();
+      ref.invalidate(filteredBooksProvider);
+      ref.invalidate(groupedBooksProvider);
+
+      // 3초 후 idle로 복원
+      await Future.delayed(const Duration(seconds: 3));
+      if (state == SyncStatus.success) {
+        state = SyncStatus.idle;
+      }
+    } catch (e) {
+      state = SyncStatus.error;
+    }
+  }
+}
+
+final syncProvider =
+    NotifierProvider<SyncNotifier, SyncStatus>(SyncNotifier.new);

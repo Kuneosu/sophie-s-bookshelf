@@ -20,7 +20,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 2,
+      version: 3,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -30,6 +30,7 @@ class DatabaseHelper {
     await db.execute('''
       CREATE TABLE books (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        supabase_id TEXT,
         title TEXT NOT NULL,
         author TEXT NOT NULL,
         publisher TEXT NOT NULL,
@@ -41,7 +42,10 @@ class DatabaseHelper {
         memo TEXT DEFAULT '',
         addedAt INTEGER NOT NULL,
         startedAt INTEGER,
-        finishedAt INTEGER
+        finishedAt INTEGER,
+        synced INTEGER DEFAULT 0,
+        deleted INTEGER DEFAULT 0,
+        updatedAt INTEGER
       )
     ''');
   }
@@ -49,6 +53,14 @@ class DatabaseHelper {
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) {
       await db.execute('ALTER TABLE books ADD COLUMN startedAt INTEGER');
+    }
+    if (oldVersion < 3) {
+      // 동기화용 컬럼 추가
+      await db.execute('ALTER TABLE books ADD COLUMN supabase_id TEXT');
+      await db.execute('ALTER TABLE books ADD COLUMN synced INTEGER DEFAULT 0');
+      await db.execute(
+          'ALTER TABLE books ADD COLUMN deleted INTEGER DEFAULT 0');
+      await db.execute('ALTER TABLE books ADD COLUMN updatedAt INTEGER');
     }
   }
 }
